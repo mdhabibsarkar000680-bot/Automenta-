@@ -2,14 +2,14 @@
 require_once __DIR__.'/db.php';
 require_once __DIR__.'/config.php';
 require_once __DIR__.'/payment_config.php';
-header('Content-Type: application/json; charset=utf-8');
+header('Content-Type: application/json');
 $id=(int)($_GET['order']??0);
 $st=db()->prepare("SELECT * FROM orders WHERE id=? LIMIT 1");
 $st->execute([$id]);
 $o=$st->fetch();
 $token=(($_SESSION['automenta_order_id']??0)===$id)?($_SESSION['automenta_order_token']??''):'';
 if(!$o||!$token||!hash_equals((string)($o['download_token_hash']??''),hash('sha256',$token))){
-  echo json_encode(['paid'=>false,'error'=>'Invalid order or token']);
+  echo json_encode(['paid'=>false]);
   exit;
 }
 if($o['status']!=='paid' && $o['provider']==='sslcommerz' && $o['provider_reference']!==''){
@@ -27,7 +27,7 @@ if($o['status']!=='paid' && $o['provider']==='sslcommerz' && $o['provider_refere
     ]);
     $res=curl_exec($ch);
     curl_close($ch);
-    $q=json_decode($res?:'',true);
+    $q=json_decode($res??'',true);
     $item=$q['element'][0]??null;
     if(is_array($item) && in_array(($item['status']??''),['VALID','VALIDATED'],true) && ($item['tran_id']??'')===$o['provider_reference'] && strtoupper((string)($item['currency_type']??''))===strtoupper($o['currency']) && abs((float)($item['currency_amount']??-1)-(float)$o['amount'])<0.001 && (string)($item['risk_level']??'1')==='0'){
       db()->prepare("UPDATE orders SET status='paid',paid_at=NOW() WHERE id=? AND status='pending'")->execute([$id]);
